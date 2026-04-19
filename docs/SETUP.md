@@ -10,6 +10,23 @@ Complete walkthrough from zero to "mom gets her first digest email."
 - An Anthropic API key
 - A Resend account (free tier) + a domain you can send from
 
+## 0. Get your config files ready
+
+Before you collect any keys, set up the files you'll paste them into:
+
+```bash
+cd agent
+curl -LsSf https://astral.sh/uv/install.sh | sh   # if you don't have uv
+uv sync
+cp .env.example .env
+
+cd ../web
+npm install
+cp .env.local.example .env.local
+```
+
+Now open `agent/.env` and `web/.env.local` side by side — the steps below will tell you what to fill in.
+
 ## 1. Supabase
 
 1. Create a new project at https://supabase.com
@@ -49,15 +66,7 @@ Complete walkthrough from zero to "mom gets her first digest email."
 
 ## 4. Agent setup
 
-All agent commands must be run from the `agent/` directory — that's where `pyproject.toml` lives.
-
-```bash
-cd agent
-curl -LsSf https://astral.sh/uv/install.sh | sh       # if you don't have uv
-uv sync
-cp .env.example .env
-# edit .env with your keys
-```
+By now your `agent/.env` should be filled in (from step 0). All `uv run` commands must be run from the `agent/` directory — that's where `pyproject.toml` lives.
 
 ## 5. Create the first user (mom)
 
@@ -88,11 +97,10 @@ Check the output; matches should appear in the `user_job_matches` table.
 
 ## 8. Frontend setup
 
+By now your `web/.env.local` should be filled in (from step 0). Start the dev server:
+
 ```bash
-cd ../web
-npm install
-cp .env.local.example .env.local
-# edit .env.local — NEXT_PUBLIC_SUPABASE_URL must match the value in agent/.env
+cd web
 npm run dev
 ```
 
