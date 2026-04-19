@@ -18,8 +18,17 @@ Complete walkthrough from zero to "mom gets her first digest email."
    - `service_role` key (NOT the `anon` key — the Python backend uses the service role to bypass RLS)
    - `anon` key (for the Next.js frontend)
    - Direct DB connection string (Settings → Database → Connection string → URI)
-3. Apply the schema:
+3. Apply the schema. You have two options:
+
+   **Option A — Supabase SQL editor (no psql needed):**
+   Open your project in the Supabase dashboard → SQL Editor, paste the contents of `agent/shared/schema.sql`, and run it.
+
+   **Option B — psql from the terminal:**
    ```bash
+   # macOS: install psql if you don't have it
+   brew install postgresql@15
+   brew link postgresql@15
+   # then from the project root:
    psql "$SUPABASE_DB_URL" < agent/shared/schema.sql
    ```
 4. In Authentication → Providers, make sure Email is enabled, and set "Confirm email" OFF for the MVP (we're using magic links, not passwords).
@@ -37,6 +46,8 @@ Complete walkthrough from zero to "mom gets her first digest email."
 
 ## 4. Agent setup
 
+All agent commands must be run from the `agent/` directory — that's where `pyproject.toml` lives.
+
 ```bash
 cd agent
 curl -LsSf https://astral.sh/uv/install.sh | sh       # if you don't have uv
@@ -47,7 +58,7 @@ cp .env.example .env
 
 ## 5. Create the first user (mom)
 
-Edit `agent/scripts/seed_user.py` with her real info, then:
+Edit `agent/scripts/seed_user.py` with her real info, then (from the `agent/` directory):
 
 ```bash
 uv run python scripts/seed_user.py
