@@ -17,7 +17,7 @@ Complete walkthrough from zero to "mom gets her first digest email."
    - Project URL (looks like `https://xxx.supabase.co`)
    - `service_role` key (NOT the `anon` key — the Python backend uses the service role to bypass RLS)
    - `anon` key (for the Next.js frontend)
-   - Direct DB connection string (Settings → Database → Connection string → URI)
+   - Direct DB connection string (Project overview → Copy (next to Project URL) → Direct Connection string)
 3. Apply the schema. You have two options:
 
    **Option A — Supabase SQL editor (no psql needed):**
@@ -28,9 +28,12 @@ Complete walkthrough from zero to "mom gets her first digest email."
    # macOS: install psql if you don't have it
    brew install postgresql@15
    brew link postgresql@15
+   # set the connection string inline or export from your .env first:
+   export SUPABASE_DB_URL="postgresql://postgres:PASSWORD@db.YOUR-PROJECT.supabase.co:5432/postgres"
    # then from the project root:
    psql "$SUPABASE_DB_URL" < agent/shared/schema.sql
    ```
+   (This value also goes in `agent/.env` — see step 4.)
 4. In Authentication → Providers, make sure Email is enabled, and set "Confirm email" OFF for the MVP (we're using magic links, not passwords).
 
 ## 2. Resend
@@ -89,7 +92,7 @@ Check the output; matches should appear in the `user_job_matches` table.
 cd ../web
 npm install
 cp .env.local.example .env.local
-# edit .env.local with your Supabase anon key + URL
+# edit .env.local — NEXT_PUBLIC_SUPABASE_URL must match the value in agent/.env
 npm run dev
 ```
 
