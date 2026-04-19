@@ -2,6 +2,8 @@
 
 Complete walkthrough from zero to "mom gets her first digest email."
 
+All commands run from the project root unless otherwise noted.
+
 ## Prerequisites
 
 - Python 3.12+
@@ -15,14 +17,12 @@ Complete walkthrough from zero to "mom gets her first digest email."
 Before you collect any keys, set up the files you'll paste them into:
 
 ```bash
-cd agent
 curl -LsSf https://astral.sh/uv/install.sh | sh   # if you don't have uv
-uv sync
-cp .env.example .env
+uv sync --project agent
+cp agent/.env.example agent/.env
 
-cd ../web
-npm install
-cp .env.local.example .env.local
+npm install --prefix web
+cp web/.env.local.example web/.env.local
 ```
 
 Now open `agent/.env` and `web/.env.local` side by side — the steps below will tell you what to fill in.
@@ -46,19 +46,33 @@ Now open `agent/.env` and `web/.env.local` side by side — the steps below will
    # macOS: install psql if you don't have it
    brew install postgresql@15
    brew link postgresql@15
-   # set the connection string inline or export from your .env first:
-   export SUPABASE_DB_URL="postgresql://postgres:PASSWORD@db.YOUR-PROJECT.supabase.co:5432/postgres"
-   # then from the project root:
+   # load your .env so SUPABASE_DB_URL is available:
+   source agent/.env
    psql "$SUPABASE_DB_URL" < agent/shared/schema.sql
    ```
-   (This value also goes in `agent/.env` — see step 4.)
-5. In Authentication → Providers, make sure Email is enabled, and set "Confirm email" OFF for the MVP (we're using magic links, not passwords).
+5. Verify your Supabase variables are working:
+   ```bash
+   uv run --directory agent python -c "from shared.lib.db import get_client; get_client().table('users').select('id').limit(1).execute(); print('Supabase OK')"
+   ```
+   You should see `Supabase OK`. Any error means a wrong URL or key.
+6. In Authentication → Sign In / Providers, make sure Email is enabled, and set "Confirm email" OFF for the MVP (we're using magic links, not passwords).
 
 ## 2. Resend
 
 1. Create an account at https://resend.com
-2. Verify a domain you own (or use Resend's test domain for initial development)
-3. Grab your API key
+2. Grab your API key from the dashboard
+3. Set up a sender — you have two options:
+
+   **Option A — Resend's test domain (no DNS setup):**
+   Use `onboarding@resend.dev` as your `DIGEST_FROM_EMAIL`. Works immediately, but can only send to the email address you signed up to Resend with. Good enough to verify the pipeline end-to-end.
+
+   Verify it's working (replace `you@example.com` with your Resend account email):
+   ```bash
+   uv run --directory agent python -c "import resend; from shared.lib.settings import settings; resend.api_key = settings.resend_api_key; r = resend.Emails.send({'from': settings.digest_from_email, 'to': ['you@example.com'], 'subject': 'Test', 'text': 'It works!'}); print('Resend OK:', r['id'])"
+   ```
+
+   **Option B — your own domain:**
+   Add and verify a domain in Resend's dashboard (requires adding DKIM DNS records). Lets you send to anyone. Come back to this when you're ready.
 
 ## 3. Anthropic
 
@@ -67,14 +81,14 @@ Now open `agent/.env` and `web/.env.local` side by side — the steps below will
 
 ## 4. Agent setup
 
-By now your `agent/.env` should be filled in (from step 0). All `uv run` commands must be run from the `agent/` directory — that's where `pyproject.toml` lives.
+By now your `agent/.env` should be filled in (from step 0). You're ready to run the agent.
 
 ## 5. Create the first user (mom)
 
-Edit `agent/scripts/seed_user.py` with her real info, then (from the `agent/` directory):
+Edit `agent/scripts/seed_user.py` with her real info, then:
 
 ```bash
-uv run python scripts/seed_user.py
+uv run --directory agent python scripts/seed_user.py
 ```
 
 This inserts her into the `users` table. No password; she'll sign in via magic link.
@@ -82,7 +96,7 @@ This inserts her into the `users` table. No password; she'll sign in via magic l
 ## 6. Discovery agent — first run
 
 ```bash
-uv run python -m v1_claude_native.discover --user mom@example.com
+uv run --directory agent python -m v1_claude_native.discover --user mom@example.com
 ```
 
 This figures out where to search for her and populates `user_sources`. Takes a minute or two.
@@ -90,7 +104,7 @@ This figures out where to search for her and populates `user_sources`. Takes a m
 ## 7. First match run
 
 ```bash
-uv run python -m v1_claude_native.run_once --user mom@example.com
+uv run --directory agent python -m v1_claude_native.run_once --user mom@example.com
 ```
 
 This runs crawl + match end-to-end. Takes 5-15 minutes on a first run (backfill).
@@ -101,8 +115,7 @@ Check the output; matches should appear in the `user_job_matches` table.
 By now your `web/.env.local` should be filled in (from step 0). Start the dev server:
 
 ```bash
-cd web
-npm run dev
+npm run dev --prefix web
 ```
 
 Visit http://localhost:3000. Log in as mom with her email; she'll get a magic link via Supabase.
@@ -110,8 +123,7 @@ Visit http://localhost:3000. Log in as mom with her email; she'll get a magic li
 ## 9. Send the first digest email
 
 ```bash
-cd ../agent
-uv run python -m v1_claude_native.send_digest --user mom@example.com
+uv run --directory agent python -m v1_claude_native.send_digest --user mom@example.com
 ```
 
 She should receive the email within a minute. Check the spam folder.
