@@ -30,12 +30,13 @@ Now open `agent/.env` and `web/.env.local` side by side — the steps below will
 ## 1. Supabase
 
 1. Create a new project at https://supabase.com
-2. Once ready, grab these from the project settings:
+2. Once ready, grab these from the 'Copy' button on the Project Overview:
    - Project URL (looks like `https://xxx.supabase.co`)
-   - `service_role` key (NOT the `anon` key — the Python backend uses the service role to bypass RLS)
-   - `anon` key (for the Next.js frontend)
-   - Direct DB connection string (Project overview → Copy (next to Project URL) → Direct Connection string)
-3. Apply the schema. You have two options:
+   - Publishable key (for the Next.js frontend)
+   - Direct DB connection string (looks like `postgresql://...`)
+3. Grab this from Settings > API keys:
+   - Secret key (for the Python backend)
+4. Apply the schema. You have two options:
 
    **Option A — Supabase SQL editor (no psql needed):**
    Open your project in the Supabase dashboard → SQL Editor, paste the contents of `agent/shared/schema.sql`, and run it.
@@ -51,7 +52,7 @@ Now open `agent/.env` and `web/.env.local` side by side — the steps below will
    psql "$SUPABASE_DB_URL" < agent/shared/schema.sql
    ```
    (This value also goes in `agent/.env` — see step 4.)
-4. In Authentication → Providers, make sure Email is enabled, and set "Confirm email" OFF for the MVP (we're using magic links, not passwords).
+5. In Authentication → Providers, make sure Email is enabled, and set "Confirm email" OFF for the MVP (we're using magic links, not passwords).
 
 ## 2. Resend
 
@@ -121,6 +122,6 @@ See `docs/SCHEDULING.md` for the cron configs for each agent version.
 
 ## Troubleshooting
 
-- **"Permission denied" when writing to Supabase from Python** — make sure you're using the `service_role` key, not the `anon` key
+- **"Permission denied" when writing to Supabase from Python** — make sure you're using the Secret key, not the Publishable key
 - **Magic link emails not arriving** — check Supabase Auth logs; most likely the Email provider isn't configured
 - **Claude rate limits on first run** — the discovery agent does a lot of searches; rerun with `--user` filter or upgrade your Anthropic tier

@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str
     supabase_url: str
-    supabase_service_key: str
+    supabase_secret_key: str
     supabase_db_url: str
     resend_api_key: str
     digest_from_email: str
