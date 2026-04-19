@@ -32,9 +32,10 @@ def _run_agent_loop(
     max_iterations: int = 30,
     user_id: UUID | None = None,
     source_id: UUID | None = None,
+    category: str | None = None,
 ) -> dict:
     """Generic tool-use loop. Runs until Claude stops requesting tools or we hit max."""
-    run_id = _start_run(agent_type, user_id=user_id, source_id=source_id)
+    run_id = _start_run(agent_type, user_id=user_id, source_id=source_id, category=category)
     client = get_client()
     messages: list[MessageParam] = [{"role": "user", "content": initial_user_message}]
     summary = {"iterations": 0, "tool_calls": {}}
@@ -104,12 +105,18 @@ def _run_agent_loop(
         raise
 
 
-def run_discovery(user: dict) -> dict:
-    """Discover job sources for this user and save them to user_sources."""
-    prompt = render_prompt("discovery", user=user, criteria=user["criteria"])
+def run_discovery(user: dict, uc: dict) -> dict:
+    """Discover sources for this user+category and save them to user_sources.
+
+    uc is a row from user_categories: {category, criteria, ...}.
+    The category prefix ('jobs:', 'volunteer:') determines which prompt and
+    which kind of sources to look for.
+    """
+    domain = uc["category"].split(":")[0]  # 'jobs', 'volunteer', etc.
+    prompt = render_prompt(f"{domain}/discovery", user=user, criteria=uc["criteria"])
     system = (
-        "You are a job-source research agent. Use web search to find real, currently-active "
-        "job sites. For each source you want to recommend, call save_source. "
+        f"You are a {domain}-source research agent. Use web search to find real, currently-active "
+        f"sites for category '{uc['category']}'. For each source you want to recommend, call save_source. "
         "When you've recorded 5-10 good sources, stop."
     )
     return _run_agent_loop(
@@ -119,6 +126,7 @@ def run_discovery(user: dict) -> dict:
         tools=[WEB_SEARCH_TOOL] + DISCOVERY_TOOLS,
         model=MODEL_SMART,
         user_id=user["id"],
+        category=uc["category"],
         max_iterations=40,
     )
 
@@ -151,27 +159,32 @@ def run_crawl(source: dict, search_terms: list[str], location: dict) -> dict:
     )
 
 
-def run_match(user: dict) -> dict:
-    """Score candidate jobs for this user and save matches ≥ 60."""
-    db = db_client()
+def run_match(user: dict, uc: dict) -> dict:
+    """Score candidate listings for this user+category and save matches ≥ 60.
 
-    # Pull candidate jobs: matching tags, not yet seen, posted in last 14 days.
-    profession_tags = _infer_tags(user.get("profession_category"))
-    # Simple pre-filter; a real query would also use location_normalized and freshness.
+    uc is a row from user_categories: {category, criteria, ...}.
+    Currently implements jobs matching; volunteer matching will dispatch to
+    volunteer_positions once that domain is fully wired.
+    """
+    db = db_client()
+    category = uc["category"]
+    criteria = uc["criteria"]
+
+    # Pull candidates: matching tags, not yet seen.
+    candidate_tags = _infer_tags(category)
     seen_result = db.table("user_seen_jobs").select("job_id").eq("user_id", user["id"]).execute()
     seen_ids = {row["job_id"] for row in seen_result.data}
 
     candidates_query = db.table("jobs").select("*").eq("is_active", True)
-    if profession_tags:
-        candidates_query = candidates_query.overlaps("category_tags", profession_tags)
+    if candidate_tags:
+        candidates_query = candidates_query.overlaps("category_tags", candidate_tags)
     candidates = candidates_query.limit(100).execute().data
     candidates = [c for c in candidates if c["id"] not in seen_ids][:50]
 
     if not candidates:
-        logger.info("no_candidates", user=user["email"])
+        logger.info("no_candidates", user=user["email"], category=category)
         return {"candidates": 0, "matches_saved": 0}
 
-    # Build a prompt that asks Claude to score all candidates in one loop.
     job_summaries = "\n\n---\n\n".join(
         f"job_id: {j['id']}\nTitle: {j['title']}\nCompany: {j.get('company')}\n"
         f"Location: {j.get('location_text')}\nURL: {j['url']}\n\n{j.get('description', '')[:2000]}"
@@ -181,9 +194,9 @@ def run_match(user: dict) -> dict:
         f"Score each of the following {len(candidates)} job postings for this user.\n\n"
         f"## User profile\n{user['profile_summary']}\n\n"
         f"## Criteria\n"
-        f"IDEAL: {user['criteria']['ideal']}\n"
-        f"ACCEPTABLE: {user['criteria']['acceptable']}\n"
-        f"HECK NO: {user['criteria']['heck_no']}\n\n"
+        f"IDEAL: {criteria['ideal']}\n"
+        f"ACCEPTABLE: {criteria['acceptable']}\n"
+        f"HECK NO: {criteria['heck_no']}\n\n"
         f"## Location\n{user['location']}\n\n"
         f"## Postings\n\n{job_summaries}\n\n"
         f"For each job, call save_match if score ≥ 60, or mark_seen if score < 60 "
@@ -202,32 +215,39 @@ def run_match(user: dict) -> dict:
         tools=MATCH_TOOLS,
         model=MODEL_SMART,
         user_id=user["id"],
+        category=category,
         max_iterations=60,
     )
 
 
-def _infer_tags(profession_category: str | None) -> list[str]:
-    """Rough mapping from profession_category to relevant tags for pre-filter.
+def _infer_tags(shortlist_category: str | None) -> list[str]:
+    """Rough mapping from shortlist_category to relevant tags for pre-filter.
 
     This is deliberately simple — tags are the LLM's output from enrichment,
     and we just want a broad net here. Match scoring does the nuanced work.
     """
-    if not profession_category:
+    if not shortlist_category:
         return []
     mapping = {
-        "nursing": ["nursing", "rn", "home-health", "private-duty"],
-        "developer-education": ["developer-education", "developer-relations", "software-engineering"],
+        "jobs:nursing": ["nursing", "rn", "home-health", "private-duty"],
+        "jobs:developer-education": ["developer-education", "developer-relations", "software-engineering"],
     }
-    return mapping.get(profession_category, [profession_category])
+    return mapping.get(shortlist_category, [shortlist_category])
 
 
-def _start_run(agent_type: str, user_id: UUID | None = None, source_id: UUID | None = None) -> str:
+def _start_run(
+    agent_type: str,
+    user_id: UUID | None = None,
+    source_id: UUID | None = None,
+    category: str | None = None,
+) -> str:
     db = db_client()
     result = db.table("agent_runs").insert({
         "version": "v1",
         "agent_type": agent_type,
         "user_id": str(user_id) if user_id else None,
         "source_id": str(source_id) if source_id else None,
+        "category": category,
     }).execute()
     return result.data[0]["id"]
 
