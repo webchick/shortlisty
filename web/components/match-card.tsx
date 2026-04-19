@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { updateMatchFeedback } from '@/lib/actions'
 import type { Feedback, PendingMatch } from '@/lib/types'
 
@@ -12,6 +13,7 @@ type Props = {
 export function MatchCard({ match, initialFeedback }: Props) {
   const [feedback, setFeedback] = useState<Feedback | null>(initialFeedback ?? null)
   const [isPending, startTransition] = useTransition()
+  const router = useRouter()
 
   const isIdeal = match.verdict === 'ideal'
   const accentColor = isIdeal ? 'var(--pink-500)' : 'var(--teal-500)'
@@ -38,6 +40,7 @@ export function MatchCard({ match, initialFeedback }: Props) {
         cursor: 'pointer',
         opacity: isPending ? 0.8 : 1,
       }}
+      onClick={() => router.push(`/matches/${match.job_id}`)}
       onMouseEnter={e => {
         e.currentTarget.style.boxShadow = 'var(--shadow-md)'
         e.currentTarget.style.transform = 'translateY(-1px)'
