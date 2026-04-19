@@ -32,8 +32,8 @@ Complete walkthrough from zero to "mom gets her first digest email."
 
 ## 3. Anthropic
 
-1. Get an API key from https://console.anthropic.com
-2. Make sure your account has credit
+1. Get an API key from https://platform.claude.com
+2. Make sure your account has credit — [name] > Organization settings > Billing
 
 ## 4. Agent setup
 
