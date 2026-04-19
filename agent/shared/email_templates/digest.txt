@@ -1,0 +1,30 @@
+Hi {{ user.name.split(' ')[0] }},
+
+Here's what this week's search turned up.
+
+{% if ideal_matches %}
+=== Top matches ({{ ideal_matches|length }}) ===
+
+{% for m in ideal_matches %}
+{{ loop.index }}. {{ m.title }} — {{ m.company }}
+   {{ m.location_text }}
+   Why it fits: {{ m.one_line_summary }}
+{% if m.concerns %}   Concerns: {{ m.concerns|join('; ') }}
+{% endif %}   {{ m.url }}
+
+{% endfor %}
+{% endif %}
+{% if worth_a_look_matches %}
+=== Worth a look ({{ worth_a_look_matches|length }}) ===
+
+{% for m in worth_a_look_matches %}
+{{ loop.index }}. {{ m.title }} — {{ m.company }}
+   {{ m.location_text }}
+   {{ m.one_line_summary }}
+   {{ m.url }}
+
+{% endfor %}
+{% endif %}
+
+---
+Reply to this email with any feedback — the next run will learn from it.

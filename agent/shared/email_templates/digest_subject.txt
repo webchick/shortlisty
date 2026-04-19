@@ -1,0 +1,7 @@
+{%- if ideal_matches -%}
+{{ user.name.split(' ')[0] }} — {{ ideal_matches|length }} strong match{{ 'es' if ideal_matches|length != 1 else '' }} this week
+{%- elif worth_a_look_matches -%}
+{{ user.name.split(' ')[0] }} — {{ worth_a_look_matches|length }} role{{ 's' if worth_a_look_matches|length != 1 else '' }} worth a look
+{%- else -%}
+{{ user.name.split(' ')[0] }} — quiet week for jobs
+{%- endif -%}

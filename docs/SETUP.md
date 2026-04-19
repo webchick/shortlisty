@@ -1,0 +1,104 @@
+# Setup
+
+Complete walkthrough from zero to "mom gets her first digest email."
+
+## Prerequisites
+
+- Python 3.12+
+- Node.js 20+
+- A Supabase account (free tier)
+- An Anthropic API key
+- A Resend account (free tier) + a domain you can send from
+
+## 1. Supabase
+
+1. Create a new project at https://supabase.com
+2. Once ready, grab these from the project settings:
+   - Project URL (looks like `https://xxx.supabase.co`)
+   - `service_role` key (NOT the `anon` key — the Python backend uses the service role to bypass RLS)
+   - `anon` key (for the Next.js frontend)
+   - Direct DB connection string (Settings → Database → Connection string → URI)
+3. Apply the schema:
+   ```bash
+   psql "$SUPABASE_DB_URL" < agent/shared/schema.sql
+   ```
+4. In Authentication → Providers, make sure Email is enabled, and set "Confirm email" OFF for the MVP (we're using magic links, not passwords).
+
+## 2. Resend
+
+1. Create an account at https://resend.com
+2. Verify a domain you own (or use Resend's test domain for initial development)
+3. Grab your API key
+
+## 3. Anthropic
+
+1. Get an API key from https://console.anthropic.com
+2. Make sure your account has credit
+
+## 4. Agent setup
+
+```bash
+cd agent
+curl -LsSf https://astral.sh/uv/install.sh | sh       # if you don't have uv
+uv sync
+cp .env.example .env
+# edit .env with your keys
+```
+
+## 5. Create the first user (mom)
+
+Edit `agent/scripts/seed_user.py` with her real info, then:
+
+```bash
+uv run python scripts/seed_user.py
+```
+
+This inserts her into the `users` table. No password; she'll sign in via magic link.
+
+## 6. Discovery agent — first run
+
+```bash
+uv run python -m v1_claude_native.discover --user mom@example.com
+```
+
+This figures out where to search for her and populates `user_sources`. Takes a minute or two.
+
+## 7. First match run
+
+```bash
+uv run python -m v1_claude_native.run_once --user mom@example.com
+```
+
+This runs crawl + match end-to-end. Takes 5-15 minutes on a first run (backfill).
+Check the output; matches should appear in the `user_job_matches` table.
+
+## 8. Frontend setup
+
+```bash
+cd ../web
+npm install
+cp .env.local.example .env.local
+# edit .env.local with your Supabase anon key + URL
+npm run dev
+```
+
+Visit http://localhost:3000. Log in as mom with her email; she'll get a magic link via Supabase.
+
+## 9. Send the first digest email
+
+```bash
+cd ../agent
+uv run python -m v1_claude_native.send_digest --user mom@example.com
+```
+
+She should receive the email within a minute. Check the spam folder.
+
+## 10. Schedule everything
+
+See `docs/SCHEDULING.md` for the cron configs for each agent version.
+
+## Troubleshooting
+
+- **"Permission denied" when writing to Supabase from Python** — make sure you're using the `service_role` key, not the `anon` key
+- **Magic link emails not arriving** — check Supabase Auth logs; most likely the Email provider isn't configured
+- **Claude rate limits on first run** — the discovery agent does a lot of searches; rerun with `--user` filter or upgrade your Anthropic tier
