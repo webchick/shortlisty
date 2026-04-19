@@ -9,7 +9,7 @@ All commands run from the project root unless otherwise noted.
 - Python 3.12+
 - Node.js 20+
 - A Supabase account (free tier)
-- An Anthropic API key
+- An Claude Platfom API key
 - A Resend account (free tier) + a domain you can send from
 
 ## 0. Get your config files ready
@@ -74,10 +74,14 @@ Now open `agent/.env` and `web/.env.local` side by side — the steps below will
    **Option B — your own domain:**
    Add and verify a domain in Resend's dashboard (requires adding DKIM DNS records). Lets you send to anyone. Come back to this when you're ready.
 
-## 3. Anthropic
+## 3. Claude Platform
 
 1. Get an API key from https://platform.claude.com
 2. Make sure your account has credit — [name] > Organization settings > Billing
+3. Paste your API key into `agent/.env`, then verify it's working:
+   ```bash
+   uv run --directory agent python -c "from shared.lib.claude import get_client; print(get_client().messages.create(model='claude-haiku-4-5-20251001', max_tokens=16, messages=[{'role': 'user', 'content': 'say ok'}]).content[0].text)"
+   ```
 
 ## 4. Agent setup
 
@@ -136,4 +140,4 @@ See `docs/SCHEDULING.md` for the cron configs for each agent version.
 
 - **"Permission denied" when writing to Supabase from Python** — make sure you're using the Secret key, not the Publishable key
 - **Magic link emails not arriving** — check Supabase Auth logs; most likely the Email provider isn't configured
-- **Claude rate limits on first run** — the discovery agent does a lot of searches; rerun with `--user` filter or upgrade your Anthropic tier
+- **Claude rate limits on first run** — the discovery agent does a lot of searches; rerun with `--user` filter or upgrade your Claude tier

@@ -21,7 +21,7 @@ MODEL_FAST = "claude-haiku-4-5-20251001"  # enrichment, cheap classification
 
 @cache
 def get_client() -> Anthropic:
-    return Anthropic(api_key=settings.anthropic_api_key)
+    return Anthropic(api_key=settings.claude_api_key)
 
 
 def call_json(
