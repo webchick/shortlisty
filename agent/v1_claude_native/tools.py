@@ -105,7 +105,7 @@ MATCH_TOOLS = [SAVE_MATCH_TOOL, MARK_SEEN_TOOL]
 # ----- Handlers -----
 
 
-def handle_save_source(input: dict, *, user_id: UUID) -> dict:
+def handle_save_source(input: dict, *, user_id: UUID, category: str | None = None) -> dict:
     db = get_client()
     # Upsert source by URL.
     existing = db.table("sources").select("id").eq("url", input["url"]).execute()
@@ -124,6 +124,7 @@ def handle_save_source(input: dict, *, user_id: UUID) -> dict:
     db.table("user_sources").upsert({
         "user_id": str(user_id),
         "source_id": source_id,
+        "category": category,
         "search_terms": input["best_search_terms"],
         "confidence": input["confidence"],
         "enabled": True,
@@ -209,10 +210,11 @@ def dispatch_tool(
     *,
     user_id: UUID | None = None,
     source_id: UUID | None = None,
+    category: str | None = None,
 ) -> Any:
     """Single entry point for tool dispatch from the agent loop."""
     if tool_name == "save_source":
-        return handle_save_source(tool_input, user_id=user_id)
+        return handle_save_source(tool_input, user_id=user_id, category=category)
     if tool_name == "save_job":
         return handle_save_job(tool_input, source_id=source_id)
     if tool_name == "save_match":

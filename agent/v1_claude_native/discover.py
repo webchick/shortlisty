@@ -17,9 +17,11 @@ logger = get_logger(__name__)
 def main(email: str) -> None:
     db = get_client()
     user = db.table("users").select("*").eq("email", email).single().execute().data
-    logger.info("discovery_start", user=email)
-    summary = run_discovery(user)
-    logger.info("discovery_done", user=email, summary=summary)
+    categories = db.table("user_categories").select("*").eq("user_id", user["id"]).execute().data
+    for uc in categories:
+        logger.info("discovery_start", user=email, category=uc["category"])
+        summary = run_discovery(user, uc)
+        logger.info("discovery_done", user=email, category=uc["category"], summary=summary)
 
 
 if __name__ == "__main__":

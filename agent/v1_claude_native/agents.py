@@ -8,7 +8,9 @@ done and emits a final text response.
 from datetime import datetime, timezone
 from uuid import UUID
 
+from anthropic import RateLimitError
 from anthropic.types import MessageParam
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 from shared.lib.claude import MODEL_FAST, MODEL_SMART, get_client
 from shared.lib.db import get_client as db_client
@@ -20,6 +22,18 @@ logger = get_logger(__name__)
 
 # Web search is provided by Anthropic as a built-in tool.
 WEB_SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search"}
+
+
+def _is_retryable_rate_limit(exc: BaseException) -> bool:
+    """Return True only for transient rate limits, not credit-balance exhaustion."""
+    if not isinstance(exc, RateLimitError):
+        return False
+    body = getattr(exc, "body", {}) or {}
+    error_type = (body.get("error") or {}).get("type", "") if isinstance(body, dict) else ""
+    if error_type == "billing_error":
+        logger.error("billing_error_no_retry", detail=str(exc))
+        return False
+    return True
 
 
 def _run_agent_loop(
@@ -40,16 +54,25 @@ def _run_agent_loop(
     messages: list[MessageParam] = [{"role": "user", "content": initial_user_message}]
     summary = {"iterations": 0, "tool_calls": {}}
 
+    @retry(
+        retry=retry_if_exception(_is_retryable_rate_limit),
+        wait=wait_exponential(multiplier=1, min=60, max=120),
+        stop=stop_after_attempt(5),
+        before_sleep=lambda s: logger.warning("rate_limit_retry", attempt=s.attempt_number, wait=s.next_action.sleep),
+    )
+    def _call_api():
+        return client.messages.create(
+            model=model,
+            max_tokens=4096,
+            system=system,
+            tools=tools,
+            messages=messages,
+        )
+
     try:
         for i in range(max_iterations):
             summary["iterations"] = i + 1
-            response = client.messages.create(
-                model=model,
-                max_tokens=4096,
-                system=system,
-                tools=tools,
-                messages=messages,
-            )
+            response = _call_api()
 
             # Append Claude's response to history
             messages.append({"role": "assistant", "content": response.content})
@@ -68,15 +91,19 @@ def _run_agent_loop(
 
                     # Web search is handled server-side by Anthropic; skip dispatch.
                     if block.name == "web_search":
+                        logger.info("web_search", query=block.input.get("query", ""))
                         continue
 
                     try:
+                        logger.info("tool_call", tool=block.name, input=block.input)
                         result = dispatch_tool(
                             block.name,
                             block.input,
                             user_id=user_id,
                             source_id=source_id,
+                            category=category,
                         )
+                        logger.info("tool_result", tool=block.name, result=str(result)[:200])
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": block.id,

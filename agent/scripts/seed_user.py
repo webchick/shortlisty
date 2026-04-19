@@ -1,6 +1,6 @@
 """Seed the first users. Edit this file with real info before running.
 
-    uv run python scripts/seed_user.py
+    uv run --directory agent python -m scripts.seed_user
 """
 
 from shared.lib.db import get_client
@@ -19,7 +19,7 @@ USERS = [
     {
         "user": {
             "name": "Linda Example",
-            "email": "mom@example.com",
+            "email": "shortlisty@webchick.net",
             "profile_summary": (
                 "Retired RN with 30+ years of experience, mostly in hospital settings. "
                 "Looking to continue practicing in a 1:1 capacity — home health or private "

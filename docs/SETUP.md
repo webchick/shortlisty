@@ -92,7 +92,7 @@ By now your `agent/.env` should be filled in (from step 0). You're ready to run 
 Edit `agent/scripts/seed_user.py` with her real info, then:
 
 ```bash
-uv run --directory agent python scripts/seed_user.py
+uv run --directory agent python -m scripts.seed_user
 ```
 
 This inserts her into the `users` table. No password; she'll sign in via magic link.
@@ -104,6 +104,12 @@ uv run --directory agent python -m v1_claude_native.discover --user mom@example.
 ```
 
 This figures out where to search for her and populates `user_sources`. Takes a minute or two.
+
+Verify the results:
+```bash
+source agent/.env
+psql "$SUPABASE_DB_URL" -c "SELECT s.name, us.confidence, us.category FROM user_sources us JOIN sources s ON s.id = us.source_id;"
+```
 
 ## 7. First match run
 
